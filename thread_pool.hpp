@@ -17,19 +17,38 @@ public:
 		typedef std::function<Ret(Args...)> F;
 		
 		std::atomic<bool> *ready = new std::atomic<bool>(false);
+		std::mutex *cv_mutex = new std::mutex;
+		std::mutex *finish_mutex = new std::mutex;
+		std::condition_variable_any *cv = new std::condition_variable_any;
+		
 		std::promise<Ret> *p = new std::promise<Ret>;
 		
-		auto task_wrapper = [p, ready](F&& f, Args&&... args){
+		auto task_wrapper = [cv, finish_mutex, p, ready]
+		(F&& f, Args&&... args){
 			p->set_value(f(args...));
 			ready->store(true);
+			finish_mutex->lock();
+			cv->notify_all();
+			finish_mutex->unlock();
 		};
 		
-		auto ret_wrapper = [p, ready]() -> Ret{
-			while(!ready->load())
-				std::this_thread::yield();
+		auto ret_wrapper = [cv, cv_mutex, finish_mutex, p, ready]
+		() -> Ret{
+			if(!ready->load()){
+				cv_mutex->lock();
+				cv->wait(*cv_mutex, 
+					[ready]() -> bool {return ready->load();}
+				);
+				cv_mutex->unlock();
+			}
 			auto temp = p->get_future().get();
 			
 			// Clean up resources
+			
+			finish_mutex->lock();
+			delete cv;
+			delete cv_mutex;
+			delete finish_mutex;
 			delete p;
 			delete ready;
 			return temp;
@@ -49,19 +68,36 @@ public:
 		typedef std::function<Ret()> F;
 		
 		std::atomic<bool> *ready = new std::atomic<bool>(false);
+		std::mutex *cv_mutex = new std::mutex;
+		std::mutex *finish_mutex = new std::mutex;
+		std::condition_variable_any *cv = new std::condition_variable_any;
+		
 		std::promise<Ret> *p = new std::promise<Ret>;
 		
-		auto task_wrapper = [p, ready](F&& f){
+		auto task_wrapper = [cv, finish_mutex, p, ready](F&& f){
 			p->set_value(f());
 			ready->store(true);
+			finish_mutex->lock();
+			cv->notify_all();
+			finish_mutex->unlock();
 		};
 		
-		auto ret_wrapper = [p, ready]() -> Ret{
-			while(!ready->load())
-				std::this_thread::yield();
+		auto ret_wrapper = [cv, cv_mutex, finish_mutex, p, ready]() -> Ret{
+			if(!ready->load()){
+				cv_mutex->lock();
+				cv->wait(*cv_mutex, 
+					[ready]() -> bool {return ready->load();}
+				);
+				cv_mutex->unlock();
+			}
 			auto temp = p->get_future().get();
 			
 			// Clean up resources
+			
+			finish_mutex->lock();
+			delete cv;
+			delete cv_mutex;
+			delete finish_mutex;
 			delete p;
 			delete ready;
 			return temp;
@@ -81,20 +117,38 @@ public:
 		typedef std::function<void(Args...)> F;
 		
 		std::atomic<bool> *ready = new std::atomic<bool>(false);
+		std::mutex *cv_mutex = new std::mutex;
+		std::mutex *finish_mutex = new std::mutex;
+		std::condition_variable_any *cv = new std::condition_variable_any;
+		
 		std::promise<void> *p = new std::promise<void>;
 		
-		auto task_wrapper = [p, ready](F&& f, Args&&... args){
+		auto task_wrapper = [cv, finish_mutex, p, ready]
+		(F&& f, Args&&... args){
 			f(args...);
 			p->set_value();
 			ready->store(true);
+			finish_mutex->lock();
+			cv->notify_all();
+			finish_mutex->unlock();
 		};
 		
-		auto ret_wrapper = [p, ready](){
-			while(!ready->load())
-				std::this_thread::yield();
+		auto ret_wrapper = [cv, cv_mutex, finish_mutex, p, ready](){
+			if(!ready->load()){
+				cv_mutex->lock();
+				cv->wait(*cv_mutex, 
+					[ready]() -> bool {return ready->load();}
+				);
+				cv_mutex->unlock();
+			}
 			p->get_future().get();
 			
 			// Clean up resources
+			
+			finish_mutex->lock();
+			delete cv;
+			delete cv_mutex;
+			delete finish_mutex;
 			delete p;
 			delete ready;
 			return;
@@ -113,20 +167,37 @@ public:
 		typedef std::function<void()> F;
 		
 		std::atomic<bool> *ready = new std::atomic<bool>(false);
+		std::mutex *cv_mutex = new std::mutex;
+		std::mutex *finish_mutex = new std::mutex;
+		std::condition_variable_any *cv = new std::condition_variable_any;
+		
 		std::promise<void> *p = new std::promise<void>;
 		
-		auto task_wrapper = [p, ready](F&& f){
+		auto task_wrapper = [cv, finish_mutex, p, ready](F&& f){
 			f();
 			p->set_value();
 			ready->store(true);
+			finish_mutex->lock();
+			cv->notify_all();
+			finish_mutex->unlock();
 		};
 		
-		auto ret_wrapper = [p, ready](){
-			while(!ready->load())
-				std::this_thread::yield();
+		auto ret_wrapper = [cv, cv_mutex, finish_mutex, p, ready](){
+			if(!ready->load()){
+				cv_mutex->lock();
+				cv->wait(*cv_mutex, 
+					[ready]() -> bool {return ready->load();}
+				);
+				cv_mutex->unlock();
+			}
 			p->get_future().get();
 			
 			// Clean up resources
+			
+			finish_mutex->lock();
+			delete cv;
+			delete cv_mutex;
+			delete finish_mutex;
 			delete p;
 			delete ready;
 			return;
