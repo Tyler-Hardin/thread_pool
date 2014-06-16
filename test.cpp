@@ -15,7 +15,7 @@ static void core_dump(int sigid)
     kill(getpid(), SIGSEGV);
 }
 
-const int num_threads = 6;
+const int num_threads = 8;
 
 void func_void_void(){
 	cout << "void" << endl;
@@ -74,7 +74,7 @@ bool func_bool_int(int n){
 void test_bool_int(){
 	thread_pool p(num_threads);
 	vector<future<bool>> f;
-	int n = 1000000;
+	int n = 100000;
 	int max = 10 * n;
 	for(int i = n;i < max;i++)
 		f.emplace_back(p.async(function<bool(int)>(func_bool_int), i));
