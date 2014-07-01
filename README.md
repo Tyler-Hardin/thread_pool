@@ -28,4 +28,8 @@ int main(){
 }
 ```
 
-`thread_pool::async` is a templated function that accepts any `std::function` and arguments to pass to the function. It returns a `std::future<Ret>` where `Ret` is the return type of the aforementioned `std::function`.
+`thread_pool::async` is a templated method that accepts any `std::function` and arguments to pass to the function. It returns a `std::future<Ret>` where `Ret` is the return type of the aforementioned `std::function`.
+
+To submit a task: `future<Ret> fut(pool.async(std::function<Ret(Args...)>, args...));`.
+
+To wait on `fut` to complete: `Ret result = fut.get();`
