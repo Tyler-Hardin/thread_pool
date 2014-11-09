@@ -4,7 +4,7 @@ thread_pool
 Thread pool using std::* primitives from C++11. The entire library is only one class (`thread_pool`) with one method (`async`) for submitting tasks.
 
 
-An example that computes the primality of 2 to 10,000 using 8 threads (instead of creating 10,000 - 2 threads and causing your system to come to a grinding halt):
+An example that computes the primality of 2 to 10,000 using 8 threads (instead of creating 10,000 - 1 threads and causing your system to come to a grinding halt):
 ```
 #include "thread_pool.hpp"
 
