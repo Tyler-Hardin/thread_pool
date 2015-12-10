@@ -44,7 +44,7 @@ void test_void_int(){
 	thread_pool p(num_threads);
 	vector<future<void>> f;
 	for(int i = 10000000;i < 20000000;i++)
-		f.emplace_back(p.async<int>(function<void(int)>(func_void_int), move(i)));
+		f.emplace_back(p.async<int>(function<void(int)>(func_void_int), i));
 	for(auto i = f.begin();i != f.end();i++)
 		i->get();
 }
@@ -80,6 +80,23 @@ void test_bool_int(){
 		f.emplace_back(p.async(function<bool(int)>(func_bool_int), i));
 	for(auto i = f.begin();i != f.end();i++, n++)
 		cout << n << ": " << i->get() << endl;
+}
+
+int func_int_int_int(int a, int b) {
+	return a * b;
+}
+
+void test_void_int_int() {
+	thread_pool p(num_threads);
+	vector<future<int>> f;
+	for(int i = 1;i < 100;i++) {
+		for(int j = 1;j < 100;j++) {
+		f.emplace_back(p.async<int, int>(
+			function<int(int, int)>(func_int_int_int), i, j));
+		}
+	}
+	for(auto i = f.begin();i != f.end();i++)
+		i->get();
 }
 
 int main(){

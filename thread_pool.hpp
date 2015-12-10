@@ -19,7 +19,7 @@ public:
 		std::atomic<bool> *ready = new std::atomic<bool>(false);
 		std::promise<Ret> *p = new std::promise<Ret>;
 		
-		auto task_wrapper = [p, ready](F&& f, Args&&... args){
+		auto task_wrapper = [p, ready](F&& f, Args... args){
 			p->set_value(f(args...));
 			ready->store(true);
 		};
@@ -37,7 +37,7 @@ public:
 		
 		task_mutex.lock();
 		tasks.emplace_back(std::async(std::launch::deferred, 
-			task_wrapper, std::move(f), std::move(args...)));
+			task_wrapper, std::move(f), args...));
 		task_mutex.unlock();
 		
 		return std::async(std::launch::deferred, 
@@ -83,7 +83,7 @@ public:
 		std::atomic<bool> *ready = new std::atomic<bool>(false);
 		std::promise<void> *p = new std::promise<void>;
 		
-		auto task_wrapper = [p, ready](F&& f, Args&&... args){
+		auto task_wrapper = [p, ready](F&& f, Args... args){
 			f(args...);
 			p->set_value();
 			ready->store(true);
@@ -102,7 +102,7 @@ public:
 		
 		task_mutex.lock();
 		tasks.emplace_back(std::async(std::launch::deferred, 
-			task_wrapper, std::move(f), std::move(args...)));
+			task_wrapper, std::move(f), args...));
 		task_mutex.unlock();
 		
 		return std::async(std::launch::deferred, 
