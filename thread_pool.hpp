@@ -12,6 +12,15 @@ public:
 	thread_pool(unsigned int);
 	~thread_pool();
 	
+	/**
+	 * Pushes a new task (that returns a value and takes arguments) into 
+	 * the queue.
+	 *
+	 * @param f the function to call when executing the task
+	 * @param args the arguments to pass to the function
+	 *
+	 * @return the future used to wait on the task and get the result
+	 */
 	template<typename Ret, typename... Args>
 	std::future<Ret> async(std::function<Ret(Args...)> f, Args... args){
 		typedef std::function<Ret(Args...)> F;
@@ -44,6 +53,14 @@ public:
 				ret_wrapper);
 	}
 	
+	/**
+	 * Pushes a new task (that returns a value and doens't take arguments)
+	 * into the queue.
+	 *
+	 * @param f the function to call when executing the task
+	 *
+	 * @return the future used to wait on the task and get the result
+	 */
 	template<typename Ret>
 	std::future<Ret> async(std::function<Ret()> f){
 		typedef std::function<Ret()> F;
@@ -76,6 +93,15 @@ public:
 				ret_wrapper);
 	}
 	
+	/**
+	 * Pushes a new task (that doesn't return a value and does take 
+	 * arguments) into the queue.
+	 *
+	 * @param f the function to call when executing the task
+	 * @param args the arguments to pass to the function
+	 *
+	 * @return the future used to wait on the task
+	 */
 	template<typename... Args>
 	std::future<void> async(std::function<void(Args...)> f, Args... args){
 		typedef std::function<void(Args...)> F;
@@ -109,6 +135,14 @@ public:
 				ret_wrapper);
 	}
 	
+	/**
+	 * Pushes a new task (that doesn't return a value and doesn't that
+	 * arguments) into the queue.
+	 *
+	 * @param f the function to call when executing the task
+	 *
+	 * @return the future used to wait on the task
+	 */
 	std::future<void> async(std::function<void()> f){
 		typedef std::function<void()> F;
 		
