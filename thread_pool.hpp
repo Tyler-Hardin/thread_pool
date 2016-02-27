@@ -7,13 +7,6 @@
 #include <future>
 #include <list>
 
-/* REAMDE: The design of the async functions is unnecessarily convoluted because of an issue
- * with promises. They contain a data race between the set_value and get_future function
- * (http://wg21.cmeerw.net/lwg/issue2412). To fix this, I added an atomic bool `ready` and busy
- * loop on it until the promise's value is set. A conditional variable would be a more standard
- * alternative, but then I'd have to deal with their (theoretical) unreliability.
- */
-
 class thread_pool{
 public:
 	thread_pool(unsigned int);
@@ -32,27 +25,21 @@ public:
 	std::future<Ret> async(std::function<Ret(Args...)> f, Args... args){
 		typedef std::function<Ret(Args...)> F;
 		
-		std::atomic<bool> *ready = new std::atomic<bool>(false);
 		std::promise<Ret> *p = new std::promise<Ret>;
 		
 		// Create a function to package as a task.
-		auto task_wrapper = [p, ready](F&& f, Args... args){
-			p->set_value(f(args...));
-			ready->store(true);
+		auto task_wrapper = [p](F&& f, Args... args){
+			p->set_value(std::move(f(args...)));
 		};
 		
 		// Create a function to package as a future for the user to wait on.
-		auto ret_wrapper = [p, ready]() -> Ret{
-			// Workaround. See readme.
-			while(!ready->load())
-				std::this_thread::yield();
-			auto temp = p->get_future().get();
+		auto ret_wrapper = [p]() -> Ret{
+			auto temp = std::move(p->get_future().get());
 			
 			// Clean up resources
 			delete p;
-			delete ready;
 			
-			return temp;
+			return std::move(temp);
 		};
 		
 		task_mutex.lock();
@@ -86,27 +73,21 @@ public:
 	std::future<Ret> async(std::function<Ret()> f){
 		typedef std::function<Ret()> F;
 		
-		std::atomic<bool> *ready = new std::atomic<bool>(false);
 		std::promise<Ret> *p = new std::promise<Ret>;
 				
 		// Create a function to package as a task.
-		auto task_wrapper = [p, ready](F&& f){
-			p->set_value(f());
-			ready->store(true);
+		auto task_wrapper = [p](F&& f){
+			p->set_value(std::move(f()));
 		};
 				
 		// Create a function to package as a future for the user to wait on.
-		auto ret_wrapper = [p, ready]() -> Ret{
-			// Workaround. See readme.
-			while(!ready->load())
-				std::this_thread::yield();
-			auto temp = p->get_future().get();
+		auto ret_wrapper = [p]() -> Ret{
+			auto temp = std::move(p->get_future().get());
 			
 			// Clean up resources
 			delete p;
-			delete ready;
 			
-			return temp;
+			return std::move(temp);
 		};
 		
 		task_mutex.lock();
@@ -140,28 +121,20 @@ public:
 	std::future<void> async(std::function<void(Args...)> f, Args... args){
 		typedef std::function<void(Args...)> F;
 		
-		std::atomic<bool> *ready = new std::atomic<bool>(false);
 		std::promise<void> *p = new std::promise<void>;
 				
 		// Create a function to package as a task.
-		auto task_wrapper = [p, ready](F&& f, Args... args){
+		auto task_wrapper = [p](F&& f, Args... args){
 			f(args...);
 			p->set_value();
-			ready->store(true);
 		};
 				
 		// Create a function to package as a future for the user to wait on.
-		auto ret_wrapper = [p, ready](){
-			// Workaround. See readme.
-			while(!ready->load())
-				std::this_thread::yield();
+		auto ret_wrapper = [p](){
 			p->get_future().get();
 			
 			// Clean up resources
 			delete p;
-			delete ready;
-			
-			return;
 		};
 		
 		task_mutex.lock();		
@@ -194,28 +167,20 @@ public:
 	std::future<void> async(std::function<void()> f){
 		typedef std::function<void()> F;
 		
-		std::atomic<bool> *ready = new std::atomic<bool>(false);
 		std::promise<void> *p = new std::promise<void>;
 				
 		// Create a function to package as a task.
-		auto task_wrapper = [p, ready](F&& f){
+		auto task_wrapper = [p](F&& f){
 			f();
 			p->set_value();
-			ready->store(true);
 		};
 				
 		// Create a function to package as a future for the user to wait on.
-		auto ret_wrapper = [p, ready](){
-			// Workaround. See readme.
-			while(!ready->load())
-				std::this_thread::yield();
+		auto ret_wrapper = [p](){
 			p->get_future().get();
 			
 			// Clean up resources
 			delete p;
-			delete ready;
-			
-			return;
 		};
 		
 		task_mutex.lock();
