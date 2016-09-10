@@ -28,9 +28,9 @@ public:
 		std::promise<Ret> *p = new std::promise<Ret>;
 		
 		// Create a function to package as a task.
-		auto task_wrapper = [p](F&& f, Args... args){
-			p->set_value(std::move(f(args...)));
-		};
+		auto task_wrapper = std::bind([p, f{std::move(f)}](Args... args){
+			p->set_value(std::move(f(std::move(args)...)));
+		}, std::move(args)...);
 		
 		// Create a function to package as a future for the user to wait on.
 		auto ret_wrapper = [p]() -> Ret{
@@ -45,10 +45,7 @@ public:
 		task_mutex.lock();
 		
 		// Package the task wrapper into a function to execute as a task.
-		auto task = std::async(std::launch::deferred, 
-			task_wrapper, 
-			std::move(f), 
-			args...);
+		auto task = std::async(std::launch::deferred, task_wrapper);
 			
 		// Push the task onto the work queue.
 		tasks.emplace_back(std::move(task));
@@ -57,8 +54,7 @@ public:
 		
 		// Package the return wrapper into a function for user to call to wait for the task to 
 		// complete and to get the result.
-		return std::async(std::launch::deferred, 
-				ret_wrapper);
+		return std::async(std::launch::deferred, ret_wrapper);
 	}
 	
 	/**
@@ -76,7 +72,7 @@ public:
 		std::promise<Ret> *p = new std::promise<Ret>;
 				
 		// Create a function to package as a task.
-		auto task_wrapper = [p](F&& f){
+		auto task_wrapper = [p, f{std::move(f)}](){
 			p->set_value(std::move(f()));
 		};
 				
@@ -93,9 +89,7 @@ public:
 		task_mutex.lock();
 				
 		// Package the task wrapper into a function to execute as a task.
-		auto task = std::async(std::launch::deferred, 
-			task_wrapper,
-			std::move(f));
+		auto task = std::async(std::launch::deferred, task_wrapper);
 			
 		// Push the task onto the work queue.
 		tasks.emplace_back(std::move(task));
@@ -104,8 +98,7 @@ public:
 		
 		// Package the return wrapper into a function for user to call to wait for the task to 
 		// complete and to get the result.
-		return std::async(std::launch::deferred, 
-				ret_wrapper);
+		return std::async(std::launch::deferred, ret_wrapper);
 	}
 	
 	/**
@@ -124,10 +117,10 @@ public:
 		std::promise<void> *p = new std::promise<void>;
 				
 		// Create a function to package as a task.
-		auto task_wrapper = [p](F&& f, Args... args){
-			f(args...);
+		auto task_wrapper = std::bind([p, f{std::move(f)}](Args... args){
+			f(std::move(args)...);
 			p->set_value();
-		};
+		}, std::move(args)...);
 				
 		// Create a function to package as a future for the user to wait on.
 		auto ret_wrapper = [p](){
@@ -140,10 +133,7 @@ public:
 		task_mutex.lock();		
 		
 		// Package the task wrapper into a function to execute as a task.
-		auto task = std::async(std::launch::deferred, 
-			task_wrapper,
-			std::move(f),
-			args...);
+		auto task = std::async(std::launch::deferred, task_wrapper);
 			
 		// Push the task onto the work queue.
 		tasks.emplace_back(std::move(task));
@@ -152,8 +142,7 @@ public:
 		
 		// Package the return wrapper into a function for user to call to wait for the task to 
 		// complete and to get the result.
-		return std::async(std::launch::deferred, 
-				ret_wrapper);
+		return std::async(std::launch::deferred, ret_wrapper);
 	}
 	
 	/**
@@ -170,7 +159,7 @@ public:
 		std::promise<void> *p = new std::promise<void>;
 				
 		// Create a function to package as a task.
-		auto task_wrapper = [p](F&& f){
+		auto task_wrapper = [p, f{std::move(f)}]{
 			f();
 			p->set_value();
 		};
@@ -186,9 +175,7 @@ public:
 		task_mutex.lock();
 				
 		// Package the task wrapper into a function to execute as a task.
-		auto task = std::async(std::launch::deferred, 
-			task_wrapper,
-			std::move(f));
+		auto task = std::async(std::launch::deferred, task_wrapper);
 			
 		// Push the task onto the work queue.
 		tasks.emplace_back(std::move(task));
@@ -197,8 +184,7 @@ public:
 		
 		// Package the return wrapper into a function for user to call to wait for the task to 
 		// complete and to get the result.
-		return std::async(std::launch::deferred, 
-				ret_wrapper);
+		return std::async(std::launch::deferred, ret_wrapper);
 	}
 
 protected:
