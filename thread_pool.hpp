@@ -183,22 +183,22 @@ public:
 	template<typename Fn, typename... Args>
 	auto async(Fn f, Args... args){
 		auto p = package<Fn, decltype(f(args...)), Args...>(f, args...);
-		return std::move(add_task_helper(std::move(p)));
+		return std::move(add_task(std::move(p)));
 	}
 
 protected:
 	virtual optional<std::future<void>> get_task() override;
 	virtual void handle_task(std::future<void>) override;
-private:
-	std::queue<std::future<void>> tasks;
 
-	auto add_task_helper(auto p) {
+	auto add_task(auto p) {
 		auto t = std::async(std::launch::deferred, p.first);
 		task_mutex.lock();
 		tasks.emplace(std::move(t));
 		task_mutex.unlock();
 		return std::move(p.second);
 	}
+private:
+	std::queue<std::future<void>> tasks;
 };
 
 #endif

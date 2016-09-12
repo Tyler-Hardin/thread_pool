@@ -52,7 +52,7 @@ public:
 	template<typename Fn, typename... Args>
 	auto async(int priority, Fn f, Args... args){
 		auto p = package<Fn, decltype(f(args...)), Args...>(f, args...);
-		return std::move(add_task_helper(priority, std::move(p)));
+		return std::move(add_task(priority, std::move(p)));
 	}
 
 	/// Called by tasks of this thread pool to yield.
@@ -62,7 +62,7 @@ protected:
 	virtual optional<std::shared_ptr<priority_task>> get_task() override;
 	virtual void handle_task(std::shared_ptr<priority_task>) override;
 
-	auto add_task_helper(int priority, auto p) {
+	auto add_task(int priority, auto p) {
 		auto t = std::shared_ptr<priority_task>(new priority_task(p.first, priority));
 		task_mutex.lock();
 		tasks.emplace(t);
