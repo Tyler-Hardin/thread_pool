@@ -1,10 +1,13 @@
 thread_pool
 ===========
 
-Thread pool using std::* primitives from C++11. The entire library is only one class (`thread_pool`) with one method (`async`) for submitting tasks.
+Thread pool using std::* primitives from C++11. Also includes a class for a priority thread pool.
 
+Requires concepts and C++17. Currently only GCC 6.0+ is sufficient. Use `-std=c++17 -fconcepts` to compile. The priority thread pool is only supported on POSIX/-like systems.
 
-An example that computes the primality of 2 to 10,000 using 8 threads (instead of creating 10,000 - 1 threads and causing your system to come to a grinding halt):
+The priority pool has the same API as described below, accept it has an int parameter first for the priority of the task. E.g. `pool.async(5, func, arg1, arg2)` for priority 5.
+
+An example that computes the primality of 2 to 10,000 using 8 threads:
 ```
 #include "thread_pool.hpp"
 
@@ -28,7 +31,7 @@ int main(){
   list<future<pair<int, bool>>> results;
   for(int i = 2;i < 10000;i++){
   	// Add a task to the queue.
-    results.push_back(pool.async(std::function<pair<int, bool>(int)>(is_prime), i));
+    results.push_back(pool.async(is_prime, i));
   }
   
   for(auto i = results.begin();i != results.end();i++){
@@ -41,6 +44,6 @@ int main(){
 
 `thread_pool::async` is a templated method that accepts any `std::function` and arguments to pass to the function. It returns a `std::future<Ret>` where `Ret` is the return type of the aforementioned `std::function`.
 
-To submit a task: `future<Ret> fut(pool.async(std::function<Ret(Args...)>, args...));`.
+To submit a task: `future<Ret> fut(pool.async(func, args...));`.
 
 To wait on `fut` to complete: `Ret result = fut.get();`
