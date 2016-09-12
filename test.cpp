@@ -12,7 +12,7 @@ using namespace std;
 
 static void core_dump(int sigid)
 {
-    kill(getpid(), SIGSEGV);
+	kill(getpid(), SIGSEGV);
 }
 
 const int num_threads = 8;
@@ -57,7 +57,7 @@ void test_int_void(){
 	thread_pool p(num_threads);
 	vector<future<int>> f;
 	for(int i = 100000;i < 1000000;i++)
-		f.emplace_back(p.async<decltype(func_int_void), int>(func_int_void));
+		f.emplace_back(p.async(func_int_void));
 	for(auto i = f.begin();i != f.end();i++)
 		cout << i->get() << endl;
 }
@@ -77,7 +77,7 @@ void test_bool_int(){
 	int n = 100000;
 	int max = 10 * n;
 	for(int i = n;i < max;i++)
-		f.emplace_back(p.async<decltype(func_bool_int), bool, int>(func_bool_int, i));
+		f.emplace_back(p.async(func_bool_int, i));
 	for(auto i = f.begin();i != f.end();i++, n++)
 		cout << n << ": " << i->get() << endl;
 }
@@ -91,8 +91,7 @@ void test_void_int_int() {
 	vector<future<int>> f;
 	for(int i = 1;i < 100;i++) {
 		for(int j = 1;j < 100;j++) {
-		f.emplace_back(p.async<decltype(func_int_int_int), int, int, int>(
-			func_int_int_int, i, j));
+		f.emplace_back(p.async(func_int_int_int, i, j));
 		}
 	}
 	for(auto i = f.begin();i != f.end();i++)
@@ -102,5 +101,6 @@ void test_void_int_int() {
 int main(){
 	//signal(SIGINT, core_dump);
 	test_bool_int();
+	test_void_void();
 	return 0;
 }

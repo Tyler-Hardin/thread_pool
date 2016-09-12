@@ -1,10 +1,9 @@
 #include "thread_pool.hpp"
 
-#include <cassert>
-#include <string.h>
-#include <unistd.h>
+#include <map>
 
-#include <iostream>
+#include <cassert>
+#include <unistd.h>
 
 using namespace std;
 
