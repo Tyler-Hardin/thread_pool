@@ -23,26 +23,34 @@ void test_void_void(){
 
 	std::function<void()> low_prio = []() {
 		long long i = 0;
+		int j = 0;
 		for(;;) {
 			++i;
-			if(i % 100000000 == 0) {
+			if(i % 10000000000 == 0) {
 				cout << "L" << endl;
 				i = 0;
+				j++;
+				if (j == 100) break;
 				priority_thread_pool::yield();
 			}
 		}
+		cout << "L done" << endl;
 	};
 
 	std::function<void()> high_prio = []() {
 		long long i = 0;
+		int j = 0;
 		for(;;) {
 			++i;
-			if(i % 100000000 == 0) {
+			if(i % 10000000000 == 0) {
 				cout << "H" << endl;
 				i = 0;
+				j++;
+				if (j == 100) break;
 				priority_thread_pool::yield();
 			}
 		}
+		cout << "H done" << endl;
 	};
 
 	// Saturate threads with low prio task.
