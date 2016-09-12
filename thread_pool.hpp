@@ -2,7 +2,6 @@
 #define THREAD_POOL_HPP
 
 #include <atomic>
-#include <csetjmp>
 #include <functional>
 #include <future>
 #include <list>
@@ -15,6 +14,11 @@
 #include <ucontext.h>
 
 using std::experimental::optional;
+
+template<typename Fn, typename Ret, typename... Args>
+concept bool Callable = requires(Fn f, Args... args) {
+	{ f(args...) } -> Ret;
+};
 
 class priority_task {
 public:
@@ -59,11 +63,10 @@ protected:
 	 *
 	 * @return the future used to wait on the task and get the result
 	 */
-	template<typename Ret, typename... Args>
+	template<typename Fn, typename Ret, typename... Args>
+	requires Callable<Fn, Ret, Args...>
 	std::pair<std::function<void()>,std::future<Ret>>
-	package(std::function<Ret(Args...)> f, Args... args){
-		typedef std::function<Ret(Args...)> F;
-		
+	package(Fn f, Args... args){
 		std::promise<Ret> *p = new std::promise<Ret>;
 		
 		// Create a function to package as a task.
@@ -92,11 +95,10 @@ protected:
 	 *
 	 * @return the future used to wait on the task and get the result
 	 */
-	template<typename Ret>
+	template<typename Fn, typename Ret>
+	requires Callable<Fn, Ret>
 	std::pair<std::function<void()>,std::future<Ret>>
-	package(std::function<Ret()> f){
-		typedef std::function<Ret()> F;
-		
+	package(Fn f){
 		std::promise<Ret> *p = new std::promise<Ret>;
 				
 		// Create a function to package as a task.
@@ -126,11 +128,10 @@ protected:
 	 *
 	 * @return the future used to wait on the task
 	 */
-	template<typename... Args>
+	template<typename Fn, typename... Args>
+	requires Callable<Fn, void, Args...>
 	std::pair<std::function<void()>,std::future<void>>
-	package(std::function<void(Args...)> f, Args... args){
-		typedef std::function<void(Args...)> F;
-		
+	package(Fn f, Args... args){
 		std::promise<void> *p = new std::promise<void>;
 				
 		// Create a function to package as a task.
@@ -158,10 +159,10 @@ protected:
 	 *
 	 * @return the future used to wait on the task
 	 */
+	template<typename Fn>
+	requires Callable<Fn, void>
 	std::pair<std::function<void()>,std::future<void>>
-	package(std::function<void()> f){
-		typedef std::function<void()> F;
-		
+	package(Fn f){
 		std::promise<void> *p = new std::promise<void>;
 				
 		// Create a function to package as a task.
@@ -286,14 +287,10 @@ public:
 	 *
 	 * @return the future used to wait on the task and get the result
 	 */
-	template<typename Ret, typename... Args>
-	std::future<Ret> async(std::function<Ret(Args...)> f, Args... args){
-		auto p = package(f, args...);
-		auto t = std::async(std::launch::deferred, p.first);
-		task_mutex.lock();
-		tasks.emplace(std::move(t));
-		task_mutex.unlock();
-		return std::move(p.second);
+	template<typename Fn, typename Ret, typename... Args>
+	std::future<Ret> async(Fn f, Args... args){
+		auto p = package<Fn, Ret, Args...>(f, args...);
+		return std::move(add_task_helper(std::move(p)));
 	}
 	
 	/**
@@ -304,14 +301,10 @@ public:
 	 *
 	 * @return the future used to wait on the task and get the result
 	 */
-	template<typename Ret>
-	std::future<Ret> async(std::function<Ret()> f){
-		auto p = package(f);
-		auto t = std::async(std::launch::deferred, p.first);
-		task_mutex.lock();
-		tasks.emplace(std::move(t));
-		task_mutex.unlock();
-		return std::move(p.second);
+	template<typename Fn, typename Ret>
+	std::future<Ret> async(Fn f){
+		auto p = package<Fn, decltype(f())>(f);
+		return std::move(add_task_helper(std::move(p)));
 	}
 	
 	/**
@@ -323,14 +316,11 @@ public:
 	 *
 	 * @return the future used to wait on the task
 	 */
-	template<typename... Args>
-	std::future<void> async(std::function<void(Args...)> f, Args... args){
-		auto p = package<Args...>(f, args...);
-		auto t = std::async(std::launch::deferred, p.first);
-		task_mutex.lock();
-		tasks.emplace(std::move(t));
-		task_mutex.unlock();
-		return std::move(p.second);
+	template<typename Fn, typename... Args>
+	requires Callable<Fn, void, Args...>
+	std::future<void> async(Fn f, Args... args){
+		auto p = package<Fn, Args...>(f, args...);
+		return std::move(add_task_helper(std::move(p)));
 	}
 	
 	/**
@@ -341,21 +331,25 @@ public:
 	 *
 	 * @return the future used to wait on the task
 	 */
-	std::future<void> async(std::function<void()> f){
-		auto p = package(f);
+	template<typename Fn>
+	std::future<void> async(Fn f){
+		auto p = package<Fn>(f);
+		return std::move(add_task_helper(std::move(p)));
+	}
+
+protected:
+	virtual optional<std::future<void>> get_task() override;
+	virtual void handle_task(std::future<void>) override;
+private:
+	std::queue<std::future<void>> tasks;
+
+	auto add_task_helper(auto p) {
 		auto t = std::async(std::launch::deferred, p.first);
 		task_mutex.lock();
 		tasks.emplace(std::move(t));
 		task_mutex.unlock();
 		return std::move(p.second);
 	}
-
-protected:
-	virtual optional<std::future<void>> get_task() override;
-	virtual void handle_task(std::future<void>) override;
-	
-private:
-	std::queue<std::future<void>> tasks;
 };
 
 class priority_thread_pool : public base_thread_pool<std::shared_ptr<priority_task>>{
@@ -373,15 +367,11 @@ public:
 	 *
 	 * @return the future used to wait on the task and get the result
 	 */
-	template<typename Ret, typename... Args>
-	std::future<Ret> async(int priority, std::function<Ret(Args...)> f, 
+	template<typename Fn, typename Ret, typename... Args>
+	std::future<Ret> async(int priority, Fn f, 
 		Args... args){
-		auto p = package(f, args...);
-		auto t = std::shared_ptr<priority_task>(new priority_task(p.first, priority));
-		task_mutex.lock();
-		tasks.emplace(t);
-		task_mutex.unlock();
-		return std::move(p.second);
+		auto p = package<Fn, Ret, Args...>(f, args...);
+		return std::move(add_task_helper(priority, std::move(p)));
 	}
 	
 	/**
@@ -393,14 +383,10 @@ public:
 	 *
 	 * @return the future used to wait on the task and get the result
 	 */
-	template<typename Ret>
-	std::future<Ret> async(int priority, std::function<Ret()> f){
-		auto p = package(f);
-		auto t = std::shared_ptr<priority_task>(new priority_task(p.first, priority));
-		task_mutex.lock();
-		tasks.emplace(t);
-		task_mutex.unlock();
-		return std::move(p.second);
+	template<typename Fn, typename Ret>
+	std::future<Ret> async(int priority, Fn f){
+		auto p = package<Fn, decltype(f())>(f);
+		return std::move(add_task_helper(priority, std::move(p)));
 	}
 	
 	/**
@@ -413,14 +399,10 @@ public:
 	 *
 	 * @return the future used to wait on the task
 	 */
-	template<typename... Args>
-	std::future<void> async(int priority, std::function<void(Args...)> f, Args... args){
-		auto p = package(f, args...);
-		auto t = std::shared_ptr<priority_task>(new priority_task(p.first, priority));
-		task_mutex.lock();
-		tasks.emplace(t);
-		task_mutex.unlock();
-		return std::move(p.second);
+	template<typename Fn, typename... Args>
+	std::future<void> async(int priority, Fn f, Args... args){
+		auto p = package<Fn, Args...>(f, args...);
+		return std::move(add_task_helper(priority, std::move(p)));
 	}
 	
 	/**
@@ -432,13 +414,10 @@ public:
 	 *
 	 * @return the future used to wait on the task
 	 */
-	std::future<void> async(int priority, std::function<void()> f){
-		auto p = package(f);
-		auto t = std::shared_ptr<priority_task>(new priority_task(p.first, priority));
-		task_mutex.lock();
-		tasks.emplace(t);
-		task_mutex.unlock();
-		return std::move(p.second);
+	template<typename Fn>
+	std::future<void> async(int priority, Fn f){
+		auto p = package<Fn>(f);
+		return std::move(add_task_helper(priority, std::move(p)));
 	}
 
 	/// Called by tasks of this thread pool to yield.
@@ -447,6 +426,14 @@ public:
 protected:
 	virtual optional<std::shared_ptr<priority_task>> get_task() override;
 	virtual void handle_task(std::shared_ptr<priority_task>) override;
+
+	auto add_task_helper(int priority, auto p) {
+		auto t = std::shared_ptr<priority_task>(new priority_task(p.first, priority));
+		task_mutex.lock();
+		tasks.emplace(t);
+		task_mutex.unlock();
+		return std::move(p.second);
+	}
 
 private:
 	std::priority_queue<std::shared_ptr<priority_task>> tasks;
