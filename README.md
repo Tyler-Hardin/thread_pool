@@ -3,7 +3,7 @@ thread_pool
 
 Thread pool using std::* primitives from C++11. Also includes a class for a priority thread pool.
 
-Requires concepts and C++17. Currently only GCC 6.0+ is sufficient. Use `-std=c++17 -fconcepts` to compile. The priority thread pool is only supported on POSIX/-like systems.
+Requires concepts and C++17. Currently only GCC 6.0+ is sufficient. Use `-std=c++17 -fconcepts` to compile. The priority thread pool is only supported on POSIX/-like systems. But it's still easy to use the normal pool on non-POSIX; just don't compile priority_thread_pool.cpp or include the header.
 
 The priority pool has the same API as described below, accept it has an int parameter first for the priority of the task. E.g. `pool.async(5, func, arg1, arg2)` for priority 5.
 
