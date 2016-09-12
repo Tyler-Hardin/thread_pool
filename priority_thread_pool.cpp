@@ -63,12 +63,18 @@ bool priority_task::run() {
 		setcontext(&work_context);
 	}
 	else {
+		// done will be true after work_context returns.
 		if(done) {
 			return true;
 		}
+		// pause will be true if we're called by setcontext(&pause_context) in task::pause().
 		else if(!paused) {
 			setcontext(&work_context);
 		}
+		// Effectively, this is the case wherein we're not done (the work
+		// function hasn't returned) and we're paused. So we return false,
+		// signifying to the priority_thread_pool::handle_task that the
+		// task needs to be added back to be resumed later.
 		else {
 			return false;
 		}
@@ -80,10 +86,17 @@ bool priority_task::run() {
  */
 void priority_task::pause() {
 	paused = true;
+
+	// We will resume here when task::run is called a second time.
 	getcontext(&work_context);
+
+	// pause will be false if we're being resumed with a second call to
+	// task::run. (I.e. setcontext(&work_context).)
 	if(paused) {
+		// Jump back into task::run() to return to scheduler.
 		setcontext(&pause_context);
 	}
+	// else return back to running work context.
 }
 
 priority_thread_pool::priority_thread_pool(unsigned int n) : base_thread_pool(n) {
@@ -127,6 +140,8 @@ void priority_thread_pool::handle_task(shared_ptr<priority_task> t) {
 		lock_guard<mutex> lk(cur_tasks_mutex);
 		cur_tasks.erase(id);
 	}
+	// Finished is true when the task is finished executing. If it's not,
+	// add it back to the heap and resume it later.
 	if(!finished) {
 		lock_guard<mutex> lk(task_mutex);
 		tasks.emplace(t);
