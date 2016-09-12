@@ -1,11 +1,9 @@
 #ifndef THREAD_POOL_HPP
 #define THREAD_POOL_HPP
 
-#include <atomic>
 #include <functional>
 #include <future>
 #include <list>
-#include <map>
 #include <memory>
 #include <queue>
 
@@ -64,61 +62,25 @@ protected:
 	 * @return the future used to wait on the task and get the result
 	 */
 	template<typename Fn, typename Ret, typename... Args>
-	requires Callable<Fn, Ret, Args...>
+	requires Callable<Fn, Ret, Args...> && !std::is_same<Ret,void>::value
 	std::pair<std::function<void()>,std::future<Ret>>
 	package(Fn f, Args... args){
 		std::promise<Ret> *p = new std::promise<Ret>;
-		
+
 		// Create a function to package as a task.
 		auto task_wrapper = std::bind([p, f{std::move(f)}](Args... args){
 			p->set_value(std::move(f(std::move(args)...)));
 		}, std::move(args)...);
-		
+
 		// Create a function to package as a future for the user to wait on.
 		auto ret_wrapper = [p]() -> Ret{
 			auto temp = std::move(p->get_future().get());
-			
-			// Clean up resources
 			delete p;
-			
 			return std::move(temp);
 		};
-		
 		return make_pair(task_wrapper, std::async(std::launch::deferred, ret_wrapper));
 	}
-	
-	/**
-	 * Wraps tasks in a executor function and wraps the promise which will
-	 * receive the return value of the function.
-	 *
-	 * @param f the function to call when executing the task
-	 *
-	 * @return the future used to wait on the task and get the result
-	 */
-	template<typename Fn, typename Ret>
-	requires Callable<Fn, Ret>
-	std::pair<std::function<void()>,std::future<Ret>>
-	package(Fn f){
-		std::promise<Ret> *p = new std::promise<Ret>;
-				
-		// Create a function to package as a task.
-		auto task_wrapper = [p, f{std::move(f)}](){
-			p->set_value(std::move(f()));
-		};
-				
-		// Create a function to package as a future for the user to wait on.
-		auto ret_wrapper = [p]() -> Ret{
-			auto temp = std::move(p->get_future().get());
-			
-			// Clean up resources
-			delete p;
-			
-			return std::move(temp);
-		};
-		
-		return make_pair(task_wrapper, std::async(std::launch::deferred, ret_wrapper));
-	}
-	
+
 	/**
 	 * Wraps tasks in a executor function and wraps the promise which will
 	 * receive the return value of the function.
@@ -128,57 +90,23 @@ protected:
 	 *
 	 * @return the future used to wait on the task
 	 */
-	template<typename Fn, typename... Args>
-	requires Callable<Fn, void, Args...>
+	template<typename Fn, typename Ret, typename... Args>
+	requires Callable<Fn, void, Args...> && std::is_same<Ret,void>::value
 	std::pair<std::function<void()>,std::future<void>>
 	package(Fn f, Args... args){
 		std::promise<void> *p = new std::promise<void>;
-				
+
 		// Create a function to package as a task.
 		auto task_wrapper = std::bind([p, f{std::move(f)}](Args... args){
 			f(std::move(args)...);
 			p->set_value();
 		}, std::move(args)...);
-				
+
 		// Create a function to package as a future for the user to wait on.
 		auto ret_wrapper = [p](){
 			p->get_future().get();
-			
-			// Clean up resources
 			delete p;
 		};
-		
-		return make_pair(task_wrapper, std::async(std::launch::deferred, ret_wrapper));
-	}
-	
-	/**
-	 * Wraps tasks in a executor function and wraps the promise which will
-	 * receive the return value of the function.
-	 *
-	 * @param f the function to call when executing the task
-	 *
-	 * @return the future used to wait on the task
-	 */
-	template<typename Fn>
-	requires Callable<Fn, void>
-	std::pair<std::function<void()>,std::future<void>>
-	package(Fn f){
-		std::promise<void> *p = new std::promise<void>;
-				
-		// Create a function to package as a task.
-		auto task_wrapper = [p, f{std::move(f)}]{
-			f();
-			p->set_value();
-		};
-				
-		// Create a function to package as a future for the user to wait on.
-		auto ret_wrapper = [p](){
-			p->get_future().get();
-			
-			// Clean up resources
-			delete p;
-		};
-		
 		return make_pair(task_wrapper, std::async(std::launch::deferred, ret_wrapper));
 	}
 
@@ -189,14 +117,11 @@ protected:
 		init_mutex.lock();
 	 	init_threads();
 	}
-	
+
 	/**
 	 * Destructs a thread pool, waiting on tasks to finish.
 	 */
 	virtual ~base_thread_pool(){
-		task_mutex.lock();
-		join = true;
-		task_mutex.unlock();
 		wait();
 	}
 
@@ -235,8 +160,7 @@ protected:
 	void init_threads(){
 	 	task_mutex.lock();
 		for(int i = 0;i < num_threads;i++){
-			std::function<void(void)> f = 
-				std::bind(&base_thread_pool::thread_func, this);
+			auto f = std::bind(&base_thread_pool::thread_func, this);
 			threads.push_back(std::move(std::thread(f)));
 	 	}
 	 	task_mutex.unlock();
@@ -247,6 +171,9 @@ protected:
 	 * destructors.
 	 */
 	void wait() {
+		task_mutex.lock();
+		join = true;
+		task_mutex.unlock();
 		while(threads.size() > 0) {
 			auto &t = threads.back();
 			t.join();
@@ -277,63 +204,18 @@ class thread_pool : public base_thread_pool<std::future<void>>{
 public:
 	thread_pool(unsigned int);
 	virtual ~thread_pool();
-	
+
 	/**
-	 * Pushes a new task (that returns a value and takes arguments) into 
-	 * the queue.
+	 * Pushes a new task to the queue.
 	 *
 	 * @param f the function to call when executing the task
 	 * @param args the arguments to pass to the function
 	 *
 	 * @return the future used to wait on the task and get the result
-	 */
-	template<typename Fn, typename Ret, typename... Args>
-	std::future<Ret> async(Fn f, Args... args){
-		auto p = package<Fn, Ret, Args...>(f, args...);
-		return std::move(add_task_helper(std::move(p)));
-	}
-	
-	/**
-	 * Pushes a new task (that returns a value and doens't take arguments)
-	 * into the queue.
-	 *
-	 * @param f the function to call when executing the task
-	 *
-	 * @return the future used to wait on the task and get the result
-	 */
-	template<typename Fn, typename Ret>
-	std::future<Ret> async(Fn f){
-		auto p = package<Fn, decltype(f())>(f);
-		return std::move(add_task_helper(std::move(p)));
-	}
-	
-	/**
-	 * Pushes a new task (that doesn't return a value and does take 
-	 * arguments) into the queue.
-	 *
-	 * @param f the function to call when executing the task
-	 * @param args the arguments to pass to the function
-	 *
-	 * @return the future used to wait on the task
 	 */
 	template<typename Fn, typename... Args>
-	requires Callable<Fn, void, Args...>
-	std::future<void> async(Fn f, Args... args){
-		auto p = package<Fn, Args...>(f, args...);
-		return std::move(add_task_helper(std::move(p)));
-	}
-	
-	/**
-	 * Pushes a new task (that doesn't return a value and doesn't that
-	 * arguments) into the queue.
-	 *
-	 * @param f the function to call when executing the task
-	 *
-	 * @return the future used to wait on the task
-	 */
-	template<typename Fn>
-	std::future<void> async(Fn f){
-		auto p = package<Fn>(f);
+	auto async(Fn f, Args... args){
+		auto p = package<Fn, decltype(f(args...)), Args...>(f, args...);
 		return std::move(add_task_helper(std::move(p)));
 	}
 
@@ -358,65 +240,16 @@ public:
 	virtual ~priority_thread_pool();
 
 	/**
-	 * Pushes a new task (that returns a value and takes arguments) into 
-	 * the queue.
+	 * Pushes a new task to the queue.
 	 *
-	 * @param priority the priority of this task
 	 * @param f the function to call when executing the task
 	 * @param args the arguments to pass to the function
 	 *
 	 * @return the future used to wait on the task and get the result
-	 */
-	template<typename Fn, typename Ret, typename... Args>
-	std::future<Ret> async(int priority, Fn f, 
-		Args... args){
-		auto p = package<Fn, Ret, Args...>(f, args...);
-		return std::move(add_task_helper(priority, std::move(p)));
-	}
-	
-	/**
-	 * Pushes a new task (that returns a value and doens't take arguments)
-	 * into the queue.
-	 *
-	 * @param priority the priority of this task
-	 * @param f the function to call when executing the task
-	 *
-	 * @return the future used to wait on the task and get the result
-	 */
-	template<typename Fn, typename Ret>
-	std::future<Ret> async(int priority, Fn f){
-		auto p = package<Fn, decltype(f())>(f);
-		return std::move(add_task_helper(priority, std::move(p)));
-	}
-	
-	/**
-	 * Pushes a new task (that doesn't return a value and does take 
-	 * arguments) into the queue.
-	 *
-	 * @param priority the priority of this task
-	 * @param f the function to call when executing the task
-	 * @param args the arguments to pass to the function
-	 *
-	 * @return the future used to wait on the task
 	 */
 	template<typename Fn, typename... Args>
-	std::future<void> async(int priority, Fn f, Args... args){
-		auto p = package<Fn, Args...>(f, args...);
-		return std::move(add_task_helper(priority, std::move(p)));
-	}
-	
-	/**
-	 * Pushes a new task (that doesn't return a value and doesn't that
-	 * arguments) into the queue.
-	 *
-	 * @param priority the priority of this task
-	 * @param f the function to call when executing the task
-	 *
-	 * @return the future used to wait on the task
-	 */
-	template<typename Fn>
-	std::future<void> async(int priority, Fn f){
-		auto p = package<Fn>(f);
+	auto async(int priority, Fn f, Args... args){
+		auto p = package<Fn, decltype(f(args...)), Args...>(f, args...);
 		return std::move(add_task_helper(priority, std::move(p)));
 	}
 
