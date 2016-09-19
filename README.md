@@ -8,7 +8,7 @@ Requires concepts and C++17. Currently only GCC 6.0+ is sufficient. Use `-std=c+
 The priority pool has the same API as described below, accept it has an int parameter first for the priority of the task. E.g. `pool.async(5, func, arg1, arg2)` for priority 5.
 
 An example that computes the primality of 2 to 10,000 using 8 threads:
-```
+```c++
 #include "thread_pool.hpp"
 
 #include <iostream>
