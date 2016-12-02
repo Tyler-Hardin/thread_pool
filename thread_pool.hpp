@@ -9,8 +9,6 @@
 
 #include <experimental/optional>
 
-using std::experimental::optional;
-
 template<typename Fn, typename Ret, typename... Args>
 concept bool Callable = requires(Fn f, Args... args) {
 	{ f(args...) } -> Ret;
@@ -29,50 +27,31 @@ protected:
 	 * @return the future used to wait on the task and get the result
 	 */
 	template<typename Fn, typename Ret, typename... Args>
-	requires Callable<Fn, Ret, Args...> && !std::is_same<Ret,void>::value
+	requires Callable<Fn, Ret, Args...>
 	std::pair<std::function<void()>,std::future<Ret>>
 	package(Fn f, Args... args){
 		std::promise<Ret> *p = new std::promise<Ret>;
 
 		// Create a function to package as a task.
 		auto task_wrapper = std::bind([p, f{std::move(f)}](Args... args){
-			p->set_value(std::move(f(std::move(args)...)));
+            if constexpr (std::is_same<Ret,void>::value) {
+			    f(std::move(args)...);
+			    p->set_value();
+            } else {
+			    p->set_value(std::move(f(std::move(args)...)));
+            }
 		}, std::move(args)...);
 
 		// Create a function to package as a future for the user to wait on.
 		auto ret_wrapper = [p]() -> Ret{
-			auto temp = std::move(p->get_future().get());
-			delete p;
-			return std::move(temp);
-		};
-		return make_pair(task_wrapper, std::async(std::launch::deferred, ret_wrapper));
-	}
-
-	/**
-	 * Wraps tasks in a executor function and wraps the promise which will
-	 * receive the return value of the function.
-	 *
-	 * @param f the function to call when executing the task
-	 * @param args the arguments to pass to the function
-	 *
-	 * @return the future used to wait on the task
-	 */
-	template<typename Fn, typename Ret, typename... Args>
-	requires Callable<Fn, void, Args...> && std::is_same<Ret,void>::value
-	std::pair<std::function<void()>,std::future<void>>
-	package(Fn f, Args... args){
-		std::promise<void> *p = new std::promise<void>;
-
-		// Create a function to package as a task.
-		auto task_wrapper = std::bind([p, f{std::move(f)}](Args... args){
-			f(std::move(args)...);
-			p->set_value();
-		}, std::move(args)...);
-
-		// Create a function to package as a future for the user to wait on.
-		auto ret_wrapper = [p](){
-			p->get_future().get();
-			delete p;
+            if constexpr (std::is_same<Ret,void>::value) {
+                p->get_future().get();
+                delete p;
+            } else {
+                auto temp = std::move(p->get_future().get());
+                delete p;
+                return std::move(temp);
+            }
 		};
 		return make_pair(task_wrapper, std::async(std::launch::deferred, ret_wrapper));
 	}
@@ -151,7 +130,7 @@ protected:
 	/**
 	 * Returns the next task, if there is one. None if there isn't.
 	 */
-	virtual optional<Task> get_task() = 0;
+	virtual std::optional<Task> get_task() = 0;
 
 	/**
 	 * Executes a task.
@@ -187,7 +166,7 @@ public:
 	}
 
 protected:
-	virtual optional<std::future<void>> get_task() override;
+	virtual std::optional<std::future<void>> get_task() override;
 	virtual void handle_task(std::future<void>) override;
 
 	auto add_task(auto p) {

@@ -10,7 +10,7 @@ thread_pool::~thread_pool() {
 	wait();
 }
 
-optional<std::future<void>> thread_pool::get_task() {
+std::optional<std::future<void>> thread_pool::get_task() {
 	optional<std::future<void>> ret;
 	lock_guard<mutex> lk(task_mutex);
 	if(!tasks.empty()) {
