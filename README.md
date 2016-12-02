@@ -5,6 +5,8 @@ Thread pool using std::* primitives from C++11. Also includes a class for a prio
 
 Requires concepts and C++17, including constexpr-if. Currently only GCC 7.0+ is sufficient. Use `-std=c++17 -fconcepts` to compile. The priority thread pool is only supported on POSIX/-like systems. But it's still easy to use the normal pool on non-POSIX; just don't compile priority_thread_pool.cpp or include the header.
 
+If GCC 6.2 is prefered, revision `65879c9` is compatible. For just C++11, use `8bdfb9b`. `5ea01d0` was the latest to support <= C++14.
+
 The priority pool has the same API as described below, accept it has an int parameter first for the priority of the task. E.g. `pool.async(5, func, arg1, arg2)` for priority 5.
 
 An example that computes the primality of 2 to 10,000 using 8 threads:
