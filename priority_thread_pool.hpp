@@ -59,7 +59,7 @@ public:
 	static void yield();
 
 protected:
-	virtual optional<std::shared_ptr<priority_task>> get_task() override;
+	virtual std::optional<std::shared_ptr<priority_task>> get_task() override;
 	virtual void handle_task(std::shared_ptr<priority_task>) override;
 
 	auto add_task(int priority, auto p) {
