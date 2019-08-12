@@ -105,7 +105,7 @@ protected:
 	 */
 	void init_threads(){
 	 	task_mutex.lock();
-		for(int i = 0;i < num_threads;i++){
+		for(unsigned int i = 0;i < num_threads;i++){
 			auto f = std::bind(&base_thread_pool::thread_func, this);
 			threads.push_back(std::move(std::thread(f)));
 	 	}
