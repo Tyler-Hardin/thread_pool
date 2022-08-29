@@ -1,18 +1,13 @@
 #ifndef THREAD_POOL_HPP
 #define THREAD_POOL_HPP
 
+#include <concepts>
 #include <functional>
 #include <future>
 #include <list>
 #include <memory>
+#include <optional>
 #include <queue>
-
-#include <experimental/optional>
-
-template<typename Fn, typename Ret, typename... Args>
-concept bool Callable = requires(Fn f, Args... args) {
-	{ f(args...) } -> Ret;
-};
 
 template<typename Task>
 class base_thread_pool{
@@ -27,7 +22,7 @@ protected:
 	 * @return the future used to wait on the task and get the result
 	 */
 	template<typename Fn, typename Ret, typename... Args>
-	requires Callable<Fn, Ret, Args...>
+	requires std::invocable<Fn, Args...>
 	std::pair<std::function<void()>,std::future<Ret>>
 	package(Fn f, Args... args){
 		std::promise<Ret> *p = new std::promise<Ret>;

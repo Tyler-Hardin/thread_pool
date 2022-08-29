@@ -61,6 +61,7 @@ bool priority_task::run() {
 
 		started = true;
 		setcontext(&work_context);
+		__builtin_unreachable();
 	}
 	else {
 		// done will be true after work_context returns.
@@ -70,6 +71,7 @@ bool priority_task::run() {
 		// pause will be true if we're called by setcontext(&pause_context) in task::pause().
 		else if(!paused) {
 			setcontext(&work_context);
+			__builtin_unreachable();
 		}
 		// Effectively, this is the case wherein we're not done (the work
 		// function hasn't returned) and we're paused. So we return false,
